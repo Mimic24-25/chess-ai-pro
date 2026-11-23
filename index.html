@@ -130,27 +130,23 @@ function clickSquare(sq){
 function renderMoves(){const hist=game.history();if(!hist.length){$('moves').textContent='Партия ещё не началась.';return;}let html='';for(let i=0;i<hist.length;i+=2)html+='<div class="move-row"><span>'+(i/2+1)+'.</span><span>'+hist[i]+'</span><span>'+(hist[i+1]||'')+'</span></div>';$('moves').innerHTML=html;$('moves').scrollTop=$('moves').scrollHeight;}
 function engineMessage(cmd){if(worker)worker.postMessage(cmd);}
 async function initEngine(){
- const base='https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/';
- const candidates=[
-  {file:'stockfish.wasm.js',wasm:true,label:'Stockfish WebAssembly'},
-  {file:'stockfish.js',wasm:false,label:'Stockfish JavaScript'}
+ const sources=[
+  'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js',
+  'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js'
  ];
  let lastError=null;
- for(const candidate of candidates){
-  let candidateWorker=null;
+ for(const src of sources){
+  let candidateWorker=null,blobUrl=null;
   try{
    $('engineState').textContent='Загрузка Stockfish…';
-   $('detail').textContent='Подключаем движок ('+candidate.label+'). Это может занять до 20 секунд.';
-   const bootstrap=candidate.wasm
-    ? "self.Module={locateFile:function(path){return '"+base+"'+path;}};importScripts('"+base+candidate.file+"');"
-    : "importScripts('"+base+candidate.file+"');";
-   const blobUrl=URL.createObjectURL(new Blob([bootstrap],{type:'text/javascript'}));
+   $('detail').textContent='Запускаем совместимую JavaScript-версию движка…';
+   const bootstrap="importScripts('"+src+"');";
+   blobUrl=URL.createObjectURL(new Blob([bootstrap],{type:'text/javascript'}));
    candidateWorker=new Worker(blobUrl);
-   URL.revokeObjectURL(blobUrl);
    worker=candidateWorker;
    await new Promise((resolve,reject)=>{
-    let settled=false;
-    const timer=setTimeout(()=>finish(new Error('Тайм-аут: движок не ответил за 20 секунд')),20000);
+    let settled=false,gotUci=false;
+    const timer=setTimeout(()=>finish(new Error('Тайм-аут запуска Stockfish (15 секунд)')),15000);
     function finish(error){
      if(settled)return;
      settled=true;clearTimeout(timer);
@@ -159,6 +155,7 @@ async function initEngine(){
     candidateWorker.onmessage=e=>{
      const msg=String(e.data||'').trim();
      if(msg==='uciok'){
+      gotUci=true;
       engineMessage('setoption name Skill Level value '+Math.max(0,Math.min(20,Number($('level').value)*2)));
       engineMessage('isready');
      }
@@ -171,7 +168,7 @@ async function initEngine(){
      }
      if(msg.startsWith('info '))parseInfo(msg);
      if(msg.startsWith('bestmove ')){
-      const uci=msg.split(/\s+/)[1];busy=false;
+      const uci=msg.split(/\\s+/)[1];busy=false;
       if(analysisMode==='play'&&uci&&uci!=='(none)'){
        const move=game.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});
        if(move)lastMove=move;render();
@@ -182,22 +179,24 @@ async function initEngine(){
      }
     };
     candidateWorker.onerror=e=>{
-     console.error('Ошибка Stockfish worker:',e);
-     finish(new Error(e.message||'Браузер не смог запустить worker'));
+     console.error('Stockfish load error:',e);
+     finish(new Error(e.message||'Не удалось загрузить файл движка'));
     };
     engineMessage('uci');
    });
    return;
   }catch(err){
    lastError=err;
-   console.warn('Не удалось запустить '+candidate.label,err);
+   console.warn('Stockfish source failed:',src,err);
    if(candidateWorker){try{candidateWorker.terminate();}catch(e){}}
    if(worker===candidateWorker)worker=null;
    engineReady=false;
+  }finally{
+   if(blobUrl)URL.revokeObjectURL(blobUrl);
   }
  }
  $('engineState').textContent='Не удалось загрузить Stockfish';
- $('detail').textContent='Движок не ответил. Проверь интернет или отключи блокировщик. Ошибка: '+(lastError?.message||'неизвестная ошибка');
+ $('detail').textContent='Не удалось запустить движок. Последняя ошибка: '+(lastError?.message||'неизвестная ошибка');
 }
 function parseInfo(msg){const m=msg.match(/\bscore (cp|mate) (-?\d+)/);if(m){let v=m[1]==='mate'?'Мат за '+m[2]+' ходов':(Number(m[2])/100).toFixed(2)+' пешки';$('evaltext').textContent='Оценка со стороны белых: '+v;$('evalbar').style.width=Math.max(2,Math.min(98,50+Number(m[2])*2))+'%';}const pv=msg.match(/\bpv (.+)$/);if(pv&&analysisMode==='hint')$('hintbox').textContent='Вариант движка: '+pv[1].split(' ').slice(0,8).join(' ');}
 function fen(){return game.fen();}
