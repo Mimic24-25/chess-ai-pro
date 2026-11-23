@@ -130,54 +130,74 @@ function clickSquare(sq){
 function renderMoves(){const hist=game.history();if(!hist.length){$('moves').textContent='Партия ещё не началась.';return;}let html='';for(let i=0;i<hist.length;i+=2)html+='<div class="move-row"><span>'+(i/2+1)+'.</span><span>'+hist[i]+'</span><span>'+(hist[i+1]||'')+'</span></div>';$('moves').innerHTML=html;$('moves').scrollTop=$('moves').scrollHeight;}
 function engineMessage(cmd){if(worker)worker.postMessage(cmd);}
 async function initEngine(){
- const urls=[
-  'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js',
-  'https://unpkg.com/stockfish.js@10.0.2/stockfish.js'
+ const base='https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/';
+ const candidates=[
+  {file:'stockfish.wasm.js',wasm:true,label:'Stockfish WebAssembly'},
+  {file:'stockfish.js',wasm:false,label:'Stockfish JavaScript'}
  ];
- for(const url of urls){
+ let lastError=null;
+ for(const candidate of candidates){
+  let candidateWorker=null;
   try{
    $('engineState').textContent='Загрузка Stockfish…';
-   $('detail').textContent='Скачиваем шахматный движок. Это может занять несколько секунд.';
-   const response=await fetch(url,{cache:'force-cache'});
-   if(!response.ok)throw new Error('HTTP '+response.status);
-   const source=await response.text();
-   if(source.length<10000)throw new Error('Получен неполный файл движка');
-   const blob=new Blob([source],{type:'text/javascript'});
-   worker=new Worker(URL.createObjectURL(blob));
-   worker.onmessage=e=>{
-    const msg=String(e.data||'');
-    if(msg==='uciok'){
-     engineMessage('setoption name Skill Level value '+Math.max(0,Math.min(20,Number($('level').value)*2)));
-     engineMessage('isready');
+   $('detail').textContent='Подключаем движок ('+candidate.label+'). Это может занять до 20 секунд.';
+   const bootstrap=candidate.wasm
+    ? "self.Module={locateFile:function(path){return '"+base+"'+path;}};importScripts('"+base+candidate.file+"');"
+    : "importScripts('"+base+candidate.file+"');";
+   const blobUrl=URL.createObjectURL(new Blob([bootstrap],{type:'text/javascript'}));
+   candidateWorker=new Worker(blobUrl);
+   URL.revokeObjectURL(blobUrl);
+   worker=candidateWorker;
+   await new Promise((resolve,reject)=>{
+    let settled=false;
+    const timer=setTimeout(()=>finish(new Error('Тайм-аут: движок не ответил за 20 секунд')),20000);
+    function finish(error){
+     if(settled)return;
+     settled=true;clearTimeout(timer);
+     if(error)reject(error);else resolve();
     }
-    if(msg==='readyok'){
-     engineReady=true;$('engineState').textContent='Stockfish готов';
-     $('detail').textContent='Движок подключён. Сделай первый ход.';
-     if(!multiplayer&&playerColor()==='b'&&game.history().length===0)setTimeout(()=>think('play'),200);
-    }
-    if(msg.startsWith('info '))parseInfo(msg);
-    if(msg.startsWith('bestmove ')){
-     const uci=msg.split(/\s+/)[1];busy=false;
-     if(analysisMode==='play'&&uci&&uci!=='(none)'){
-      const move=game.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});
-      if(move)lastMove=move;render();
-     }else if(analysisMode==='hint'&&uci&&uci!=='(none)'){
-      $('hintbox').textContent='Лучший ход: '+uci.slice(0,2)+' → '+uci.slice(2,4)+(uci[4]?' = '+uci[4].toUpperCase():'')+'.';
+    candidateWorker.onmessage=e=>{
+     const msg=String(e.data||'').trim();
+     if(msg==='uciok'){
+      engineMessage('setoption name Skill Level value '+Math.max(0,Math.min(20,Number($('level').value)*2)));
+      engineMessage('isready');
      }
-     analysisMode=null;
-    }
-   };
-   worker.onerror=e=>{
-    $('engineState').textContent='Ошибка запуска движка';
-    $('detail').textContent='Stockfish скачан, но браузер не смог запустить его. Попробуй открыть файл в Chrome.';
-    console.error(e);
-   };
-   engineMessage('uci');
+     if(msg==='readyok'){
+      engineReady=true;
+      $('engineState').textContent='Stockfish готов';
+      $('detail').textContent='Движок подключён. Сделай первый ход.';
+      finish();
+      if(!multiplayer&&playerColor()==='b'&&game.history().length===0)setTimeout(()=>think('play'),200);
+     }
+     if(msg.startsWith('info '))parseInfo(msg);
+     if(msg.startsWith('bestmove ')){
+      const uci=msg.split(/\s+/)[1];busy=false;
+      if(analysisMode==='play'&&uci&&uci!=='(none)'){
+       const move=game.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});
+       if(move)lastMove=move;render();
+      }else if(analysisMode==='hint'&&uci&&uci!=='(none)'){
+       $('hintbox').textContent='Лучший ход: '+uci.slice(0,2)+' → '+uci.slice(2,4)+(uci[4]?' = '+uci[4].toUpperCase():'')+'.';
+      }
+      analysisMode=null;
+     }
+    };
+    candidateWorker.onerror=e=>{
+     console.error('Ошибка Stockfish worker:',e);
+     finish(new Error(e.message||'Браузер не смог запустить worker'));
+    };
+    engineMessage('uci');
+   });
    return;
-  }catch(err){console.warn('Не удалось загрузить движок с '+url,err);}
+  }catch(err){
+   lastError=err;
+   console.warn('Не удалось запустить '+candidate.label,err);
+   if(candidateWorker){try{candidateWorker.terminate();}catch(e){}}
+   if(worker===candidateWorker)worker=null;
+   engineReady=false;
+  }
  }
  $('engineState').textContent='Не удалось загрузить Stockfish';
- $('detail').textContent='Не удалось скачать движок с CDN. Проверь интернет, отключи блокировщик или попробуй позже. Сама шахматная доска должна оставаться доступной.';
+ $('detail').textContent='Движок не ответил. Проверь интернет или отключи блокировщик. Ошибка: '+(lastError?.message||'неизвестная ошибка');
 }
 function parseInfo(msg){const m=msg.match(/\bscore (cp|mate) (-?\d+)/);if(m){let v=m[1]==='mate'?'Мат за '+m[2]+' ходов':(Number(m[2])/100).toFixed(2)+' пешки';$('evaltext').textContent='Оценка со стороны белых: '+v;$('evalbar').style.width=Math.max(2,Math.min(98,50+Number(m[2])*2))+'%';}const pv=msg.match(/\bpv (.+)$/);if(pv&&analysisMode==='hint')$('hintbox').textContent='Вариант движка: '+pv[1].split(' ').slice(0,8).join(' ');}
 function fen(){return game.fen();}
