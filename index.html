@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chess AI PRO</title>
+<style>
+:root{color-scheme:dark;--bg:#10151d;--panel:#1a2330;--muted:#9aa9ba;--accent:#69d3a5}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#26394b,#10151d 55%);color:#edf3f8;font:15px system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+main{max-width:1100px;margin:auto;padding:24px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}h1{margin:0;font-size:clamp(25px,4vw,38px)}.sub{color:var(--muted);margin-top:4px}
+.layout{display:grid;grid-template-columns:minmax(280px,650px) minmax(260px,1fr);gap:20px;align-items:start}
+.panel{background:rgba(26,35,48,.94);border:1px solid #344354;border-radius:18px;padding:16px;box-shadow:0 14px 40px #0005}
+.board-frame{display:grid;grid-template-columns:26px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 26px;width:100%;max-width:650px;margin:0 auto;gap:0}#rankLabels{display:grid;grid-template-rows:repeat(8,1fr);align-items:center;text-align:center;color:#c5d1dc;font:600 12px system-ui;padding:5px 0}#fileLabels{display:grid;grid-template-columns:repeat(8,1fr);align-items:center;text-align:center;color:#c5d1dc;font:600 12px system-ui;padding:2px 0}#board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1;border:5px solid #273443;border-radius:8px;overflow:hidden;min-width:0}.board-corner{grid-column:1;grid-row:2}
+.square{border:0;border-radius:0;aspect-ratio:1;display:grid;place-items:center;padding:0;position:relative;cursor:pointer;font-family:"DejaVu Sans","Segoe UI Symbol",serif;font-size:clamp(25px,5.8vw,60px);line-height:1}
+.light{background:#eee2ca;color:#20252b}.dark{background:#78936f;color:#20252b}.square.selected{box-shadow:inset 0 0 0 5px #f5d45d}.square.last{background-image:linear-gradient(#f2d65a66,#f2d65a66)}.square.legal:after{content:"";width:23%;height:23%;border-radius:50%;background:#203d2c88;position:absolute}.square.capture:after{content:"";position:absolute;inset:4px;border:4px solid #203d2c88;border-radius:50%}
+.square .coord{position:absolute;left:4px;top:2px;font:10px system-ui;opacity:.7}.square .piece{display:inline-block;filter:drop-shadow(0 1px 1px #0005)}.square .piece.white-piece{color:#fff;text-shadow:0 1px 2px #111,-1px 0 #333,1px 0 #333,0 -1px #333,0 1px #333;-webkit-text-stroke:.45px #333}.square .piece.black-piece{color:#171717;text-shadow:0 1px 1px #fff6}
+.controls{display:grid;gap:12px}.local-box{padding:12px;background:#182b29;border:1px solid #39735f;border-radius:12px;display:grid;gap:8px;margin-bottom:10px}.multi-box{padding:12px;background:#111923;border:1px solid #344354;border-radius:12px;display:grid;gap:9px}.multi-box input{min-width:0;width:100%;background:#0d141d;color:#edf3f8;border:1px solid #43566a;border-radius:9px;padding:10px;font:inherit}.multi-actions{display:flex;gap:8px;flex-wrap:wrap}.multi-actions button{flex:1}.multi-status{font-size:13px;color:#aebdca;overflow-wrap:anywhere}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button,select{background:#263647;color:#f2f6fa;border:1px solid #43566a;border-radius:10px;padding:10px 13px;font:inherit}button{cursor:pointer}button.primary{background:#267b5c;border-color:#3ca77e}button:disabled{opacity:.45;cursor:not-allowed}label{display:grid;gap:6px;color:#c5d1dc;font-size:13px}select{width:100%}.status{font-size:18px;font-weight:700}.muted{color:var(--muted);font-size:13px}.pill{display:inline-block;padding:4px 9px;border-radius:999px;background:#263d38;color:#9be4c3;font-size:12px}
+.moves{max-height:210px;overflow:auto;background:#111923;border-radius:10px;padding:10px;font-variant-numeric:tabular-nums}.move-row{display:grid;grid-template-columns:35px 1fr 1fr;gap:8px;padding:3px 0}.hint{background:#253b35;border-radius:10px;padding:12px;min-height:48px}.bar{height:7px;background:#344354;border-radius:9px;overflow:hidden}.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.archive{margin-top:18px}.archive-list{display:grid;gap:8px;max-height:300px;overflow:auto}.archive-item{width:100%;text-align:left;background:#111923;border:1px solid #344354;padding:11px;border-radius:10px}.archive-item strong{display:block;margin-bottom:4px}.archive-item small{display:block;color:#aebdca;line-height:1.5}.review-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.review-controls button{flex:1}.archive-note{font-size:12px;color:#d9b77a;line-height:1.5}
+@media(max-width:800px){main{padding:13px}.layout{grid-template-columns:1fr}.panel{padding:12px}}
+</style>
+</head>
+<body><main>
+<header class="top"><div><h1>♟ Chess AI PRO</h1><div class="sub">Шахматы против настоящего движка Stockfish</div></div><span class="pill" id="engineState">Загрузка движка…</span><button id="adminOpen" type="button">Архив администратора</button></header>
+<section class="panel" id="adminPanel" hidden style="margin-bottom:18px">
+<h2>Администраторский архив</h2>
+<div class="row"><input id="adminEmail" type="email" placeholder="Email администратора"><input id="adminPassword" type="password" placeholder="Пароль"><button id="adminLogin" class="primary">Войти</button><button id="adminLogout">Выйти</button></div>
+<div class="muted" id="cloudStatus">Облачный архив подключается…</div><div id="cloudArchive"></div></section>
+<div class="layout">
+<section class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><b id="turnLabel">Ход белых</b><span class="muted" id="gameState">Новая партия</span></div><div class="board-frame" aria-label="Шахматная доска с координатами"><div id="rankLabels" aria-hidden="true"></div><div id="board"></div><div class="board-corner"></div><div id="fileLabels" aria-hidden="true"></div></div><div class="row" style="justify-content:space-between;margin-top:12px"><span class="muted">Белые</span><span class="muted">Чёрные</span></div></section>
+<aside class="panel controls">
+<section class="local-box"><b>Игра вдвоём на одном устройстве</b><div class="muted">Два игрока ходят по очереди за одним компьютером или телефоном.</div><button class="primary" id="localGame">Играть вдвоём на этом устройстве</button><div class="multi-status" id="localStatus">Сейчас доступна игра против компьютера или по интернету.</div></section><div class="status" id="status">Твой ход</div><div class="muted" id="detail">Выбери фигуру, затем клетку назначения.</div><section class="multi-box"><b>Игра с другом по интернету</b><div class="multi-actions"><button class="primary" id="createRoom">Создать комнату</button><button id="leaveRoom" disabled>Выйти</button></div><label>Код комнаты друга<input id="roomCode" autocomplete="off" placeholder="Вставь код комнаты"></label><button id="joinRoom">Подключиться к другу</button><div class="multi-status" id="multiStatus">Создай комнату и отправь другу код. Для соединения обоим нужен интернет.</div><button id="copyInvite" disabled>Скопировать код комнаты</button></section>
+<label>Сторона игрока<select id="side"><option value="w">Играть белыми</option><option value="b">Играть чёрными</option></select></label>
+<label>Сложность Stockfish<select id="level"><option value="1">1 · Очень легко</option><option value="2">2 · Легко</option><option value="3">3 · Ниже среднего</option><option value="4" selected>4 · Средне</option><option value="5">5 · Уверенно</option><option value="6">6 · Сложно</option><option value="7">7 · Очень сложно</option><option value="8">8 · Эксперт</option><option value="9">9 · Мастер</option><option value="10">10 · Максимум</option></select></label>
+<div class="row"><button class="primary" id="new">Новая игра</button><button id="undo">Отменить</button></div>
+<div class="row"><button id="hint">Подсказать ход</button><button id="flip">Перевернуть доску</button></div>
+<div><b>Оценка позиции</b><div class="bar" style="margin-top:8px"><i id="evalbar"></i></div><div class="muted" id="evaltext" style="margin-top:5px">Ожидание анализа</div></div>
+<div><b>Подсказка и анализ</b><div class="hint muted" id="hintbox" style="margin-top:8px">Нажми «Подсказать ход», чтобы узнать рекомендацию движка.</div></div>
+<div><b>История ходов</b><div class="moves" id="moves" style="margin-top:8px">Партия ещё не началась.</div></div>
+<div class="muted">Для Stockfish требуется интернет при первом запуске. После загрузки движок работает локально в браузере. Анализ выполняется на устройстве.</div>
+</aside></div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script><script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+(() => {
+const $=id=>document.getElementById(id);
+if(!window.Chess){$('status').textContent='Не удалось загрузить шахматные правила';$('detail').textContent='Проверь подключение к интернету и обнови страницу.';return;}
+let game=new Chess();
+const ARCHIVE_KEY="chess_ai_pro_archive_v1";
+let archive=loadArchive(),activeRecord=null,reviewMode=false,livePgnBackup="",reviewMoves=[],reviewIndex=0;
+const firebaseConfig={apiKey:"AIzaSyD7pFTN4uKxaPP0yJ3B2w3B__HJqe7jJdo",authDomain:"chess-ai-pro-90717.firebaseapp.com",projectId:"chess-ai-pro-90717",storageBucket:"chess-ai-pro-90717.firebasestorage.app",messagingSenderId:"263858815565",appId:"1:263858815565:web:bb1cc379aacb8f7881d204",measurementId:"G-DM8HG1D4WT"};
+let cloudDb=null,cloudAuth=null,cloudAdmin=false;
+try{firebase.initializeApp(firebaseConfig);cloudDb=firebase.firestore();cloudAuth=firebase.auth();$('cloudStatus').textContent='Firebase подключён. Партии будут отправляться в облако.';}catch(e){console.error(e);$('cloudStatus').textContent='Ошибка подключения Firebase: '+e.message;}
+$('adminOpen').onclick=()=>{$('adminPanel').hidden=!$('adminPanel').hidden;};
+$('adminLogin').onclick=async()=>{try{await cloudAuth.signInWithEmailAndPassword($('adminEmail').value.trim(),$('adminPassword').value);cloudAdmin=true;$('cloudStatus').textContent='Вход выполнен. Загружаю архив…';await loadCloudArchive();}catch(e){$('cloudStatus').textContent='Не удалось войти: '+e.message;}};
+$('adminLogout').onclick=async()=>{if(cloudAuth)await cloudAuth.signOut();cloudAdmin=false;$('cloudArchive').innerHTML='';$('cloudStatus').textContent='Вы вышли из администраторского аккаунта.';};
+async function saveCloudRecord(rec){
+ if(!cloudDb)return;
+ try{const doc={number:rec.number,startedAt:rec.startedAt,endedAt:rec.endedAt,result:String(rec.result||'Партия завершена'),pgn:String(rec.pgn||''),moves:Array.isArray(rec.moves)?rec.moves:[],finalFen:String(rec.finalFen||'')};
+ await cloudDb.collection('games').add(doc);$('cloudStatus').textContent='Партия '+rec.number+' сохранена в общей базе.';if(cloudAdmin)await loadCloudArchive();
+ }catch(e){console.error(e);$('cloudStatus').textContent='Не удалось сохранить в облако: '+e.message+' (проверь опубликованные Firestore Rules).';}
+}
+async function loadCloudArchive(){
+ if(!cloudDb||!cloudAuth.currentUser){return;}
+ try{const snap=await cloudDb.collection('games').orderBy('startedAt','desc').limit(200).get();const host=$('cloudArchive');host.innerHTML='';
+ snap.forEach(doc=>{const r=doc.data();const b=document.createElement('button');b.className='archive-item';b.style.display='block';b.style.width='100%';b.innerHTML='<strong>Партия '+r.number+'</strong><small>'+fmtDate(r.startedAt)+' · '+fmtTime(r.startedAt)+' — '+fmtTime(r.endedAt)+'<br>'+String(r.result||'')+' · Ходов: '+(r.moves||[]).length+'</small>';b.onclick=()=>{const local={...r,number:r.number};archive.push(local);openReview(local.number);};host.appendChild(b);});$('cloudStatus').textContent='В облачном архиве: '+snap.size+' партий.';
+ }catch(e){$('cloudStatus').textContent='Ошибка чтения архива: '+e.message+' (проверь UID в правилах Firestore).';}
+}
+
+const glyph={wk:'♚',wq:'♛',wr:'♜',wb:'♝',wn:'♞',wp:'♟',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
+let worker=null,engineReady=false,selected=null,legal=[],orientation='w',lastMove=null,busy=false,analysisMode=null, pendingResolve=null;
+let peer=null,connection=null,multiplayer=false,roomRole=null,roomPeerId='',hotseat=false;
+const files='abcdefgh',ranks='87654321';
+function squares(){let a=[];for(let r=0;r<8;r++)for(let f=0;f<8;f++)a.push(files[f]+ranks[r]);return orientation==='w'?a:a.reverse();}
+function render(){
+ if(!reviewMode)trackRecording();
+ const board=$('board');board.innerHTML='';
+ const rankOrder=orientation==='w'?ranks:ranks.split('').reverse().join('');
+ const fileOrder=orientation==='w'?files:files.split('').reverse().join('');
+ $('rankLabels').innerHTML=rankOrder.split('').map(x=>'<span>'+x+'</span>').join('');
+ $('fileLabels').innerHTML=fileOrder.split('').map(x=>'<span>'+x+'</span>').join('');
+ const legalTo=selected?game.moves({square:selected,verbose:true}):[];
+ squares().forEach((sq,idx)=>{const f=files.indexOf(sq[0]),r=8-Number(sq[1]),p=game.get(sq),b=document.createElement('button');b.className='square '+((f+r)%2?'dark':'light');if(sq===selected)b.classList.add('selected');if(lastMove&&(sq===lastMove.from||sq===lastMove.to))b.classList.add('last');if(legalTo.some(m=>m.to===sq))b.classList.add(p?'capture':'legal');b.dataset.square=sq;b.innerHTML=p?'<span class="piece '+(p.color==='w'?'white-piece':'black-piece')+'">'+glyph[p.color+p.type]+'</span>':'';b.addEventListener('click',()=>clickSquare(sq));board.appendChild(b);});
+ $('turnLabel').textContent=game.turn()==='w'?'Ход белых':'Ход чёрных';
+ $('gameState').textContent=game.in_checkmate()?'Мат':game.in_draw()?'Ничья':game.in_check()?'Шах':'Игра продолжается';
+ $('status').textContent=game.in_checkmate()?'Мат — '+(game.turn()==='w'?'чёрные':'белые')+' победили':game.in_draw()?'Ничья':game.in_check()?'Шах!':(hotseat?'Ход '+(game.turn()==='w'?'белых':'чёрных'):(game.turn()===playerColor()?'Твой ход':(multiplayer?'Ход друга':'Ход компьютера')));
+ $('detail').textContent=game.game_over()?'Партия завершена. Нажми «Новая игра», чтобы начать снова.':'Выбери фигуру, затем подсвеченную клетку.';
+ renderMoves();
+}
+function loadArchive(){try{return JSON.parse(localStorage.getItem(ARCHIVE_KEY)||'[]')}catch(e){return []}}
+function saveArchive(){try{localStorage.setItem(ARCHIVE_KEY,JSON.stringify(archive));}catch(e){console.warn('Archive save failed',e);}}
+function resultText(){if(game.in_checkmate())return game.turn()==='w'?'Победа чёрных · мат':'Победа белых · мат';if(game.in_draw())return 'Ничья';return 'Партия прервана';}
+function trackRecording(){
+ const hist=game.history();if(!hist.length)return;
+ if(!activeRecord){activeRecord={number:archive.reduce((n,x)=>Math.max(n,x.number||0),0)+1,startedAt:Date.now(),endedAt:null};}
+ activeRecord.pgn=game.pgn();activeRecord.moves=hist.slice();activeRecord.finalFen=game.fen();activeRecord.result=resultText();
+ if(game.game_over()){activeRecord.endedAt=Date.now();activeRecord.result=resultText();const rec={...activeRecord};archive.push(rec);saveArchive();activeRecord=null;renderArchive();saveCloudRecord(rec);}
+}
+function finalizeRecording(reason='Партия прервана'){
+ if(!activeRecord)return;activeRecord.endedAt=Date.now();activeRecord.result=reason;activeRecord.pgn=game.pgn();activeRecord.moves=game.history();activeRecord.finalFen=game.fen();archive.push({...activeRecord});saveArchive();activeRecord=null;renderArchive();
+}
+function fmtDate(ts){return new Date(ts).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});}
+function fmtTime(ts){return new Date(ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+function durationText(a,b){let sec=Math.max(0,Math.floor((b-a)/1000)),m=Math.floor(sec/60),s=sec%60,h=Math.floor(m/60);m%=60;return h?`${h} ч ${m} мин ${s} сек`:m?`${m} мин ${s} сек`:`${s} сек`;}
+function renderArchive(){const list=$('archiveList');$('archiveCount').textContent=archive.length+' партий';if(!archive.length){list.innerHTML='<div class="muted">Пока записей нет. Первая партия появится здесь после завершения.</div>';return;}list.innerHTML='';[...archive].reverse().forEach(rec=>{const b=document.createElement('button');b.className='archive-item';const end=rec.endedAt||rec.startedAt;b.innerHTML=`<strong>Партия ${rec.number}</strong><small>Дата: ${fmtDate(rec.startedAt)} · ${fmtTime(rec.startedAt)} — ${fmtTime(end)}<br>Длительность: ${durationText(rec.startedAt,end)}<br>${rec.result||'Результат неизвестен'} · Ходов: ${(rec.moves||[]).length}</small>`;b.onclick=()=>openReview(rec.number);list.appendChild(b);});}
+function openReview(number){const rec=archive.find(x=>x.number===number);if(!rec||!rec.pgn)return;livePgnBackup=game.pgn();reviewMode=true;reviewMoves=(rec.moves||[]).slice();reviewIndex=reviewMoves.length;game=new Chess();$('reviewPanel').hidden=false;$('reviewTitle').textContent='Партия '+rec.number;$('reviewMeta').textContent=`${fmtDate(rec.startedAt)} · ${fmtTime(rec.startedAt)} — ${fmtTime(rec.endedAt||rec.startedAt)} · ${durationText(rec.startedAt,rec.endedAt||rec.startedAt)} · ${rec.result}`;renderReviewPosition();}
+function renderReviewPosition(){game=new Chess();for(let i=0;i<reviewIndex;i++){if(!game.move(reviewMoves[i]))break;}const hist=game.history({verbose:true});lastMove=hist.length?hist[hist.length-1]:null;selected=null;$('reviewStep').textContent=`Ход ${reviewIndex} из ${reviewMoves.length}`+(reviewIndex?` · Последний ход: ${reviewMoves[reviewIndex-1]}`:' · Начальная позиция');render();}
+function closeReview(){reviewMode=false;game=new Chess();if(livePgnBackup)game.load_pgn(livePgnBackup);livePgnBackup='';reviewMoves=[];reviewIndex=0;lastMove=null;selected=null;$('reviewPanel').hidden=true;render();}
+$('closeReview').onclick=closeReview;$('reviewStart').onclick=()=>{reviewIndex=0;renderReviewPosition();};$('reviewBack').onclick=()=>{reviewIndex=Math.max(0,reviewIndex-1);renderReviewPosition();};$('reviewNext').onclick=()=>{reviewIndex=Math.min(reviewMoves.length,reviewIndex+1);renderReviewPosition();};$('reviewEnd').onclick=()=>{reviewIndex=reviewMoves.length;renderReviewPosition();};
+function playerColor(){return $('side').value;}
+function setMultiStatus(t){$('multiStatus').textContent=t;}
+function sendNet(data){if(connection&&connection.open)connection.send(data);}
+function setRoomUi(active){$('leaveRoom').disabled=!active;$('createRoom').disabled=active;$('joinRoom').disabled=active;$('copyInvite').disabled=!active||roomRole!=='host';$('side').disabled=active;$('level').disabled=active;}
+function cleanupNet(){multiplayer=false;roomRole=null;roomPeerId='';if(connection){try{connection.close();}catch(e){}connection=null;}if(peer){try{peer.destroy();}catch(e){}peer=null;}setRoomUi(false);$('side').disabled=false;$('level').disabled=false;setMultiStatus('Создай комнату и отправь другу код. Для соединения обоим нужен интернет.');render();}
+function startMultiplayer(role){finalizeRecording('Партия прервана — переключение режима');hotseat=false;$('localGame').textContent='Играть вдвоём на этом устройстве';$('localStatus').textContent='Сейчас доступна игра против компьютера или по интернету.';multiplayer=true;roomRole=role;$('side').value=role==='host'?'w':'b';$('side').disabled=true;$('level').disabled=true;game.reset();selected=null;lastMove=null;busy=false;analysisMode=null;if(worker)engineMessage('stop');$('hintbox').textContent='Режим игры с другом. Stockfish не делает ходы.';render();}
+function attachConnection(conn,hostSide){connection=conn;conn.on('open',()=>{if(hostSide){sendNet({type:'state',pgn:game.pgn()});setMultiStatus('Друг подключился! Ты играешь белыми. Код комнаты: '+roomPeerId);}else{setMultiStatus('Подключено! Ты играешь чёрными. Ожидай ход белых.');}});conn.on('data',data=>{if(!data||typeof data!=='object')return;if(data.type==='state'&&roomRole==='guest'){game.reset();if(data.pgn)game.load_pgn(data.pgn);selected=null;lastMove=null;render();}else if(data.type==='move'&&multiplayer){if(game.turn()===playerColor()){const m=game.move({from:data.from,to:data.to,promotion:data.promotion||'q'});if(m){lastMove=m;selected=null;render();}}}else if(data.type==='reset'&&multiplayer){finalizeRecording('Партия прервана — начата новая');game.reset();selected=null;lastMove=null;render();}else if(data.type==='chat'){}});conn.on('close',()=>{setMultiStatus('Соединение с другом потеряно. Можно попробовать подключиться снова.');connection=null;});conn.on('error',e=>setMultiStatus('Ошибка соединения: '+(e.message||'не удалось подключиться')));}
+$('localGame').onclick=()=>{if(multiplayer)cleanupNet();finalizeRecording('Партия прервана — переключение режима');hotseat=!hotseat;if(hotseat){if(busy){engineMessage('stop');busy=false;analysisMode=null;}if(worker)engineMessage('stop');game.reset();selected=null;lastMove=null;$('side').disabled=true;$('level').disabled=true;$('localGame').textContent='Выйти из игры вдвоём';$('localStatus').textContent='Режим для двух игроков включён. Белые ходят первыми; передайте устройство чёрным после своего хода.';$('hintbox').textContent='Игра вдвоём: Stockfish не делает ходы.';}else{$('side').disabled=false;$('level').disabled=false;$('localGame').textContent='Играть вдвоём на этом устройстве';$('localStatus').textContent='Режим для двух игроков выключен.';game.reset();selected=null;lastMove=null;if(playerColor()==='b')setTimeout(()=>think('play'),250);}$('hintbox').textContent=hotseat?'Игра вдвоём: ходите по очереди.':'Режим против компьютера.';render();};
+$('createRoom').onclick=()=>{if(!window.Peer){setMultiStatus('Не загрузилась библиотека соединения. Проверь интернет и обнови страницу.');return;}cleanupNet();multiplayer=true;roomRole='host';startMultiplayer('host');setMultiStatus('Создаём комнату…');peer=new Peer();peer.on('open',id=>{roomPeerId=id;$('roomCode').value=id;setRoomUi(true);setMultiStatus('Комната создана! Отправь другу этот код: '+id+'. Ты играешь белыми.');$('copyInvite').disabled=false;});peer.on('connection',conn=>{if(connection){conn.close();return;}attachConnection(conn,true);});peer.on('error',e=>setMultiStatus('Не удалось создать комнату: '+(e.type||e.message||'ошибка PeerJS')));};
+$('joinRoom').onclick=()=>{const id=$('roomCode').value.trim();if(!id){setMultiStatus('Введи код комнаты, который прислал друг.');return;}if(!window.Peer){setMultiStatus('Не загрузилась библиотека соединения. Проверь интернет и обнови страницу.');return;}cleanupNet();startMultiplayer('guest');setMultiStatus('Подключаемся к комнате…');peer=new Peer();peer.on('open',()=>{const conn=peer.connect(id,{reliable:true});attachConnection(conn,false);});peer.on('error',e=>setMultiStatus('Не удалось подключиться: '+(e.type||e.message||'проверь код комнаты')));};
+$('leaveRoom').onclick=()=>{cleanupNet();};
+$('copyInvite').onclick=()=>{navigator.clipboard.writeText(roomPeerId).then(()=>setMultiStatus('Код комнаты скопирован! Отправь его другу.')).catch(()=>setMultiStatus('Код комнаты: '+roomPeerId+' — скопируй его вручную.'));};
+function clickSquare(sq){
+ if(reviewMode)return;
+ if(busy||game.game_over()||(!hotseat&&game.turn()!==playerColor()))return;if(multiplayer&&(!connection||!connection.open)&&roomRole==='guest')return;
+ const piece=game.get(sq);
+ if(selected){let opts=game.moves({square:selected,verbose:true}).filter(m=>m.to===sq);if(opts.length){let promotion='q';if(opts.some(m=>m.flags.includes('p'))){const answer=prompt('Превращение пешки: q — ферзь, r — ладья, b — слон, n — конь','q');promotion=/^[qrbn]$/i.test(answer||'')?answer.toLowerCase():'q';}const move=game.move({from:selected,to:sq,promotion});if(move){lastMove=move;selected=null;render();if(multiplayer){sendNet({type:'move',from:move.from,to:move.to,promotion:move.promotion||'q'});if(game.game_over())setMultiStatus('Партия завершена. Можно начать новую игру.');}else afterPlayerMove();return;}}}
+ selected=piece&&piece.color===game.turn()?sq:null;render();
+}
+function renderMoves(){const hist=game.history();if(!hist.length){$('moves').textContent='Партия ещё не началась.';return;}let html='';for(let i=0;i<hist.length;i+=2)html+='<div class="move-row"><span>'+(i/2+1)+'.</span><span>'+hist[i]+'</span><span>'+(hist[i+1]||'')+'</span></div>';$('moves').innerHTML=html;$('moves').scrollTop=$('moves').scrollHeight;}
+function engineMessage(cmd){if(worker)worker.postMessage(cmd);}
+async function initEngine(){
+ const urls=[
+  'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js',
+  'https://unpkg.com/stockfish.js@10.0.2/stockfish.js'
+ ];
+ for(const url of urls){
+  try{
+   $('engineState').textContent='Загрузка Stockfish…';
+   $('detail').textContent='Скачиваем шахматный движок. Это может занять несколько секунд.';
+   const response=await fetch(url,{cache:'force-cache'});
+   if(!response.ok)throw new Error('HTTP '+response.status);
+   const source=await response.text();
+   if(source.length<10000)throw new Error('Получен неполный файл движка');
+   const blob=new Blob([source],{type:'text/javascript'});
+   worker=new Worker(URL.createObjectURL(blob));
+   worker.onmessage=e=>{
+    const msg=String(e.data||'');
+    if(msg==='uciok'){
+     engineMessage('setoption name Skill Level value '+Math.max(0,Math.min(20,Number($('level').value)*2)));
+     engineMessage('isready');
+    }
+    if(msg==='readyok'){
+     engineReady=true;$('engineState').textContent='Stockfish готов';
+     $('detail').textContent='Движок подключён. Сделай первый ход.';
+     if(!multiplayer&&playerColor()==='b'&&game.history().length===0)setTimeout(()=>think('play'),200);
+    }
+    if(msg.startsWith('info '))parseInfo(msg);
+    if(msg.startsWith('bestmove ')){
+     const uci=msg.split(/\s+/)[1];busy=false;
+     if(analysisMode==='play'&&uci&&uci!=='(none)'){
+      const move=game.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});
+      if(move)lastMove=move;render();
+     }else if(analysisMode==='hint'&&uci&&uci!=='(none)'){
+      $('hintbox').textContent='Лучший ход: '+uci.slice(0,2)+' → '+uci.slice(2,4)+(uci[4]?' = '+uci[4].toUpperCase():'')+'.';
+     }
+     analysisMode=null;
+    }
+   };
+   worker.onerror=e=>{
+    $('engineState').textContent='Ошибка запуска движка';
+    $('detail').textContent='Stockfish скачан, но браузер не смог запустить его. Попробуй открыть файл в Chrome.';
+    console.error(e);
+   };
+   engineMessage('uci');
+   return;
+  }catch(err){console.warn('Не удалось загрузить движок с '+url,err);}
+ }
+ $('engineState').textContent='Не удалось загрузить Stockfish';
+ $('detail').textContent='Не удалось скачать движок с CDN. Проверь интернет, отключи блокировщик или попробуй позже. Сама шахматная доска должна оставаться доступной.';
+}
+function parseInfo(msg){const m=msg.match(/\bscore (cp|mate) (-?\d+)/);if(m){let v=m[1]==='mate'?'Мат за '+m[2]+' ходов':(Number(m[2])/100).toFixed(2)+' пешки';$('evaltext').textContent='Оценка со стороны белых: '+v;$('evalbar').style.width=Math.max(2,Math.min(98,50+Number(m[2])*2))+'%';}const pv=msg.match(/\bpv (.+)$/);if(pv&&analysisMode==='hint')$('hintbox').textContent='Вариант движка: '+pv[1].split(' ').slice(0,8).join(' ');}
+function fen(){return game.fen();}
+function think(mode){if(!engineReady){$('hintbox').textContent='Движок ещё загружается. Подожди несколько секунд.';return;}if(busy)return;busy=true;analysisMode=mode;const depth=Number($('level').value)+4;engineMessage('stop');engineMessage('position fen '+fen());engineMessage('go depth '+depth);}
+function afterPlayerMove(){if(game.game_over()||multiplayer||hotseat)return;if(game.turn()!==playerColor())setTimeout(()=>think('play'),100);}
+$('new').onclick=()=>{if(reviewMode)closeReview();finalizeRecording('Партия прервана — начата новая');game.reset();if(multiplayer)sendNet({type:'reset'});selected=null;lastMove=null;busy=false;analysisMode=null;if(worker)engineMessage('stop');$('hintbox').textContent='Новая партия. Удачи!';$('evaltext').textContent='Ожидание анализа';$('evalbar').style.width='50%';render();if(!hotseat&&!multiplayer&&playerColor()==='b')setTimeout(()=>think('play'),250);};
+$('undo').onclick=()=>{if(hotseat){if(busy){engineMessage('stop');busy=false;analysisMode=null;}game.undo();selected=null;lastMove=null;render();return;}if(multiplayer){$('hintbox').textContent='Отмена ходов отключена в сетевой партии.';return;}if(busy){engineMessage('stop');busy=false;analysisMode=null;}game.undo();if(game.turn()!==playerColor())game.undo();selected=null;lastMove=null;render();};
+$('hint').onclick=()=>{if(hotseat){$('hintbox').textContent='Подсказки Stockfish отключены в игре вдвоём.';return;}think('hint');};
+$('flip').onclick=()=>{orientation=orientation==='w'?'b':'w';render();};
+$('side').onchange=()=>{$('new').click();};
+$('level').onchange=()=>{if(engineReady)engineMessage('setoption name Skill Level value '+Math.max(0,Math.min(20,Number($('level').value)*2)));};
+const joinParam=new URLSearchParams(location.search).get('join');if(joinParam)$('roomCode').value=joinParam;
+renderArchive();render();initEngine();
+})();
+</script></body></html>
