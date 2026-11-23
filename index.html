@@ -17,14 +17,17 @@ main{max-width:1100px;margin:auto;padding:24px}.top{display:flex;justify-content
 .moves{max-height:210px;overflow:auto;background:#111923;border-radius:10px;padding:10px;font-variant-numeric:tabular-nums}.move-row{display:grid;grid-template-columns:35px 1fr 1fr;gap:8px;padding:3px 0}.hint{background:#253b35;border-radius:10px;padding:12px;min-height:48px}.bar{height:7px;background:#344354;border-radius:9px;overflow:hidden}.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
 .archive{margin-top:18px}.archive-list{display:grid;gap:8px;max-height:300px;overflow:auto}.archive-item{width:100%;text-align:left;background:#111923;border:1px solid #344354;padding:11px;border-radius:10px}.archive-item strong{display:block;margin-bottom:4px}.archive-item small{display:block;color:#aebdca;line-height:1.5}.review-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.review-controls button{flex:1}.archive-note{font-size:12px;color:#d9b77a;line-height:1.5}
 @media(max-width:800px){main{padding:13px}.layout{grid-template-columns:1fr}.panel{padding:12px}}
+.modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(3,8,14,.78);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+.modal-backdrop[hidden]{display:none!important}.modal-window{width:min(760px,100%);max-height:90vh;overflow:auto;background:#182330;border:1px solid #405368;border-radius:18px;padding:20px;box-shadow:0 24px 80px #000b}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.modal-head h2,.modal-head h3{margin:0}
+.modal-window h3{margin:18px 0 8px}.review-panel{margin-top:18px;padding-top:16px;border-top:1px solid #405368}.review-panel[hidden]{display:none}
+.review-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}.review-controls button{flex:1;min-width:90px}
+@media(max-width:600px){.modal-backdrop{padding:8px}.modal-window{padding:13px;max-height:96vh}.modal-window .row{flex-wrap:wrap}.modal-window .row input{min-width:100%}}
 </style>
 </head>
 <body><main>
 <header class="top"><div><h1>♟ Chess AI PRO</h1><div class="sub">Шахматы против настоящего движка Stockfish</div></div><span class="pill" id="engineState">Загрузка движка…</span><button id="adminOpen" type="button">Архив администратора</button></header>
-<section class="panel" id="adminPanel" hidden style="margin-bottom:18px">
-<h2>Администраторский архив</h2>
-<div class="row"><input id="adminEmail" type="email" placeholder="Email администратора"><input id="adminPassword" type="password" placeholder="Пароль"><button id="adminLogin" class="primary">Войти</button><button id="adminLogout">Выйти</button></div>
-<div class="muted" id="cloudStatus">Облачный архив подключается…</div><div id="cloudArchive"></div></section>
+
 <div class="layout">
 <section class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><b id="turnLabel">Ход белых</b><span class="muted" id="gameState">Новая партия</span></div><div class="board-frame" aria-label="Шахматная доска с координатами"><div id="rankLabels" aria-hidden="true"></div><div id="board"></div><div class="board-corner"></div><div id="fileLabels" aria-hidden="true"></div></div><div class="row" style="justify-content:space-between;margin-top:12px"><span class="muted">Белые</span><span class="muted">Чёрные</span></div></section>
 <aside class="panel controls">
@@ -38,6 +41,20 @@ main{max-width:1100px;margin:auto;padding:24px}.top{display:flex;justify-content
 <div><b>История ходов</b><div class="moves" id="moves" style="margin-top:8px">Партия ещё не началась.</div></div>
 <div class="muted">Для Stockfish требуется интернет при первом запуске. После загрузки движок работает локально в браузере. Анализ выполняется на устройстве.</div>
 </aside></div></main>
+<div id="adminModal" class="modal-backdrop" hidden>
+ <section class="modal-window">
+  <div class="modal-head"><div><h2>Архив партий</h2><div class="muted">Локальные и облачные записи</div></div><button id="adminClose" aria-label="Закрыть">✕</button></div>
+  <div class="row"><input id="adminEmail" type="email" placeholder="Email администратора"><input id="adminPassword" type="password" placeholder="Пароль"><button id="adminLogin" class="primary">Войти</button><button id="adminLogout">Выйти</button></div>
+  <div class="muted" id="cloudStatus">Облачный архив подключается…</div>
+  <h3>Сохранённые партии на этом устройстве</h3><div id="archiveCount" class="muted"></div><div id="archiveList" class="archive-list"></div>
+  <h3>Облачный архив администратора</h3><div id="cloudArchive" class="archive-list"></div>
+  <section id="reviewPanel" class="review-panel" hidden>
+   <div class="modal-head"><div><h3 id="reviewTitle">Просмотр партии</h3><div id="reviewInfo" class="muted"></div></div><button id="closeReview" type="button">Закрыть просмотр</button></div>
+   <div class="review-controls"><button id="reviewStart">⏮ В начало</button><button id="reviewPrev">◀ Назад</button><span id="reviewCounter" class="muted">0 / 0</span><button id="reviewNext">Вперёд ▶</button><button id="reviewEnd">В конец ⏭</button></div>
+   <div id="reviewMoves" class="moves"></div>
+  </section>
+ </section>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script><script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -52,7 +69,14 @@ let archive=loadArchive(),activeRecord=null,reviewMode=false,livePgnBackup="",re
 const firebaseConfig={apiKey:"AIzaSyD7pFTN4uKxaPP0yJ3B2w3B__HJqe7jJdo",authDomain:"chess-ai-pro-90717.firebaseapp.com",projectId:"chess-ai-pro-90717",storageBucket:"chess-ai-pro-90717.firebasestorage.app",messagingSenderId:"263858815565",appId:"1:263858815565:web:bb1cc379aacb8f7881d204",measurementId:"G-DM8HG1D4WT"};
 let cloudDb=null,cloudAuth=null,cloudAdmin=false;
 try{firebase.initializeApp(firebaseConfig);cloudDb=firebase.firestore();cloudAuth=firebase.auth();$('cloudStatus').textContent='Firebase подключён. Партии будут отправляться в облако.';}catch(e){console.error(e);$('cloudStatus').textContent='Ошибка подключения Firebase: '+e.message;}
-$('adminOpen').onclick=()=>{$('adminPanel').hidden=!$('adminPanel').hidden;};
+$('adminOpen').onclick=()=>{$('adminModal').hidden=false;renderArchive();};
+$('adminClose').onclick=()=>{$('adminModal').hidden=true;};
+$('adminModal').addEventListener('click',e=>{if(e.target===$('adminModal'))$('adminModal').hidden=true;});
+$('closeReview').onclick=closeReview;
+$('reviewStart').onclick=()=>showReviewPly(0);
+$('reviewPrev').onclick=()=>showReviewPly(reviewIndex-1);
+$('reviewNext').onclick=()=>showReviewPly(reviewIndex+1);
+$('reviewEnd').onclick=()=>showReviewPly(reviewMoves.length);
 $('adminLogin').onclick=async()=>{try{await cloudAuth.signInWithEmailAndPassword($('adminEmail').value.trim(),$('adminPassword').value);cloudAdmin=true;$('cloudStatus').textContent='Вход выполнен. Загружаю архив…';await loadCloudArchive();}catch(e){$('cloudStatus').textContent='Не удалось войти: '+e.message;}};
 $('adminLogout').onclick=async()=>{if(cloudAuth)await cloudAuth.signOut();cloudAdmin=false;$('cloudArchive').innerHTML='';$('cloudStatus').textContent='Вы вышли из администраторского аккаунта.';};
 async function saveCloudRecord(rec){
@@ -64,7 +88,7 @@ async function saveCloudRecord(rec){
 async function loadCloudArchive(){
  if(!cloudDb||!cloudAuth.currentUser){return;}
  try{const snap=await cloudDb.collection('games').orderBy('startedAt','desc').limit(200).get();const host=$('cloudArchive');host.innerHTML='';
- snap.forEach(doc=>{const r=doc.data();const b=document.createElement('button');b.className='archive-item';b.style.display='block';b.style.width='100%';b.innerHTML='<strong>Партия '+r.number+'</strong><small>'+fmtDate(r.startedAt)+' · '+fmtTime(r.startedAt)+' — '+fmtTime(r.endedAt)+'<br>'+String(r.result||'')+' · Ходов: '+(r.moves||[]).length+'</small>';b.onclick=()=>{const local={...r,number:r.number};archive.push(local);openReview(local.number);};host.appendChild(b);});$('cloudStatus').textContent='В облачном архиве: '+snap.size+' партий.';
+ snap.forEach(doc=>{const r=doc.data();const b=document.createElement('button');b.className='archive-item';b.style.display='block';b.style.width='100%';b.innerHTML='<strong>Партия '+r.number+'</strong><small>'+fmtDate(r.startedAt)+' · '+fmtTime(r.startedAt)+' — '+fmtTime(r.endedAt)+'<br>'+String(r.result||'')+' · Ходов: '+(r.moves||[]).length+'</small>';b.onclick=()=>{const local={...r,number:r.number};openReview(local);};host.appendChild(b);});$('cloudStatus').textContent='В облачном архиве: '+snap.size+' партий.';
  }catch(e){$('cloudStatus').textContent='Ошибка чтения архива: '+e.message+' (проверь UID в правилах Firestore).';}
 }
 
@@ -103,7 +127,16 @@ function finalizeRecording(reason='Партия прервана'){
 function fmtDate(ts){return new Date(ts).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fmtTime(ts){return new Date(ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 function durationText(a,b){let sec=Math.max(0,Math.floor((b-a)/1000)),m=Math.floor(sec/60),s=sec%60,h=Math.floor(m/60);m%=60;return h?`${h} ч ${m} мин ${s} сек`:m?`${m} мин ${s} сек`:`${s} сек`;}
-function renderArchive(){const list=$('archiveList'),count=$('archiveCount');if(!list||!count)return;count.textContent=archive.length+' партий';if(!archive.length){list.innerHTML='<div class="muted">Пока записей нет. Первая партия появится здесь после завершения.</div>';return;}list.innerHTML='';[...archive].reverse().forEach(rec=>{const b=document.createElement('button');b.className='archive-item';const end=rec.endedAt||rec.startedAt;b.innerHTML=`<strong>Партия ${rec.number}</strong><small>Дата: ${fmtDate(rec.startedAt)} · ${fmtTime(rec.startedAt)} — ${fmtTime(end)}<br>Длительность: ${durationText(rec.startedAt,end)}<br>${rec.result||'Результат неизвестен'} · Ходов: ${(rec.moves||[]).length}</small>`;b.onclick=()=>openReview(rec.number);list.appendChild(b);});}
+function renderArchive(){const list=$('archiveList'),count=$('archiveCount');if(!list||!count)return;count.textContent=archive.length+' партий';if(!archive.length){list.innerHTML='<div class="muted">Пока записей нет. Первая партия появится здесь после завершения.</div>';return;}list.innerHTML='';[...archive].reverse().forEach((rec)=>{const b=document.createElement('button');b.className='archive-item';const end=rec.endedAt||rec.startedAt;b.innerHTML=`<strong>Партия ${rec.number}</strong><small>Дата: ${fmtDate(rec.startedAt)} · ${fmtTime(rec.startedAt)} — ${fmtTime(end)}<br>Длительность: ${durationText(rec.startedAt,end)}<br>${rec.result||'Результат неизвестен'} · Ходов: ${(rec.moves||[]).length}</small>`;b.onclick=()=>openReview(rec);list.appendChild(b);});}
+let reviewSavedPgn='',reviewSavedFen='',reviewSavedMode=false,reviewRecord=null;
+function openReview(recOrNumber){const rec=typeof recOrNumber==='object'?recOrNumber:archive.find(x=>x.number===recOrNumber);if(!rec){$('cloudStatus').textContent='Не удалось найти эту партию.';return;}
+ reviewSavedPgn=game.pgn();reviewSavedFen=game.fen();reviewSavedMode=reviewMode;reviewRecord=rec;reviewMoves=Array.isArray(rec.moves)?rec.moves.slice():[];reviewIndex=0;reviewMode=true;
+ $('reviewTitle').textContent='Партия '+(rec.number||'');$('reviewInfo').textContent=(rec.result||'')+' · '+fmtDate(rec.startedAt||Date.now())+' · '+reviewMoves.length+' ходов';
+ $('reviewPanel').hidden=false;$('reviewMoves').textContent=reviewMoves.length?reviewMoves.map((m,i)=>(i%2===0?Math.floor(i/2)+1+'. ':'')+m).join(' '):'В этой записи нет списка ходов.';
+ $('adminModal').hidden=false;showReviewPly(0);
+}
+function showReviewPly(n){if(!reviewRecord)return;reviewIndex=Math.max(0,Math.min(reviewMoves.length,n));game=new Chess();for(let i=0;i<reviewIndex;i++){if(!game.move(reviewMoves[i]))break;}selected=null;lastMove=null;render();$('reviewCounter').textContent=reviewIndex+' / '+reviewMoves.length;$('reviewPrev').disabled=reviewIndex===0;$('reviewStart').disabled=reviewIndex===0;$('reviewNext').disabled=reviewIndex===reviewMoves.length;$('reviewEnd').disabled=reviewIndex===reviewMoves.length;}
+function closeReview(){if(!reviewRecord)return;game=new Chess();if(reviewSavedPgn){try{game.load_pgn(reviewSavedPgn);}catch(e){if(reviewSavedFen)game.load(reviewSavedFen);}}else if(reviewSavedFen)game.load(reviewSavedFen);reviewMode=reviewSavedMode;reviewRecord=null;reviewMoves=[];selected=null;lastMove=null;$('reviewPanel').hidden=true;render();}
 
 function playerColor(){return $('side').value;}
 function setMultiStatus(t){$('multiStatus').textContent=t;}
