@@ -1,0 +1,4 @@
+Chess piece artwork: Cburnett chess set by Colin M. L. Burnett.
+Source: https://github.com/lichess-org/lila/tree/master/public/piece/cburnett
+The SVG artwork is distributed under GNU GPL version 2 or later (GPL-2.0-or-later).
+The piece files are kept unchanged in pieces/cburnett/.
