@@ -207,7 +207,7 @@ async function initEngine(){
      }
      if(msg.startsWith('info '))parseInfo(msg);
      if(msg.startsWith('bestmove ')){
-      const uci=msg.split(/\\s+/)[1];busy=false;
+      const uci=msg.split(/\s+/)[1];busy=false;
       if(analysisMode==='play'&&uci&&uci!=='(none)'){
        const move=game.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});
        if(move)lastMove=move;render();
